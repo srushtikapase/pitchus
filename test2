@@ -1,0 +1,529 @@
+<?php include 'config/db.php'; ?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Startups & Investors</title>
+    <style>
+        body { font-family: Arial; background: #f5f5f5; padding: 20px; }
+        .card { background: white; border: 1px solid #ccc; margin: 10px 0; padding: 15px; }
+        progress { width: 100%; height: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Startup Ideas</h1>
+    <a href="list_investor.php">List Yourself as Investor</a> |
+    <a href="list_startup.php">Pitch Startup Idea</a> |
+    <a href="chat.php">Group Chat</a>
+
+    <h2>Startups</h2>
+    <?php
+    $result = $conn->query("SELECT s.*, i.name as investor_name FROM startups s LEFT JOIN investors i ON s.investor_id = i.id ORDER BY s.created_at DESC");
+    while($row = $result->fetch_assoc()) {
+        $progress = ($row['fund_raised'] / $row['pitch_amount']) * 100;
+        $progress = min(100, round($progress, 2));
+        echo "<div class='card'>";
+        echo "<strong>Name:</strong> " . htmlspecialchars($row['name']) . "<br>";
+        echo "<strong>Idea:</strong> " . nl2br(htmlspecialchars($row['idea'])) . "<br>";
+        echo "<strong>Pitch Amount:</strong> " . $row['pitch_amount'] . " ETH<br>";
+        echo "<strong>Equity:</strong> " . $row['equity_percentage'] . "%<br>";
+        echo "<strong>Pitched To:</strong> " . htmlspecialchars($row['investor_name']) . "<br>";
+        echo "<img src='assets/uploads/startups/" . $row['product_photo'] . "' height='100'><br>";
+        echo "<progress value='$progress' max='100'></progress>";
+        echo "<small>{$row['fund_raised']} / {$row['pitch_amount']} ETH raised ($progress%)</small><br><br>";
+        echo "<button onclick=\"fundStartup('{$row['wallet_address']}', {$row['id']}, {$row['pitch_amount']})\">💰 Fund This Startup</button>";
+        if (!empty($row['funding_tx'])) {
+            echo "<details><summary>Funding Logs</summary><pre>" . htmlspecialchars($row['funding_tx']) . "</pre></details>";
+        }
+        echo "</div>";
+    }
+    ?>
+
+
+
+<h2>Investors</h2>
+    <div>
+        <?php
+        $result = $conn->query("SELECT * FROM investors ORDER BY created_at DESC");
+        while($row = $result->fetch_assoc()) {
+            echo "<div style='border:1px solid #ccc;padding:10px;margin:10px;'>";
+            echo "<img src='assets/uploads/investors/" . $row['photo'] . "' height='100'><br>";
+            echo "<strong>Name:</strong> " . htmlspecialchars($row['name']) . "<br>";
+            echo "<strong>Company:</strong> " . htmlspecialchars($row['company']) . "<br>";
+            echo "<strong>Description:</strong> " . nl2br(htmlspecialchars($row['description'])) . "<br>";
+            echo "<strong>Contact:</strong> " . htmlspecialchars($row['contact']) . "<br>";
+            echo "</div>";
+        }
+        ?>
+    </div>
+
+<script>
+async function fundStartup(wallet, startupId, target) {
+    if (typeof window.ethereum === 'undefined') {
+        alert('Please install MetaMask.');
+        return;
+    }
+
+    const [account] = await ethereum.request({ method: 'eth_requestAccounts' });
+    const amount = prompt("Enter amount to fund in ETH:");
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+        alert("Invalid amount.");
+        return;
+    }
+
+    const weiAmount = (parseFloat(amount) * 1e18).toString();
+    const txParams = {
+        to: wallet,
+        from: account,
+        value: '0x' + parseInt(weiAmount).toString(16)
+    };
+
+    try {
+        const txHash = await ethereum.request({ method: 'eth_sendTransaction', params: [txParams] });
+        const form = new FormData();
+        form.append("startup_id", startupId);
+        form.append("amount", amount);
+        form.append("tx_hash", txHash);
+
+        await fetch("record_funding.php", { method: "POST", body: form });
+        alert("Transaction successful: " + txHash);
+        location.reload();
+    } catch (err) {
+        alert("Transaction failed: " + err.message);
+    }
+}
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<section id="jobs" class="hidden p-6 md:p-8">
+        <div class="max-w-7xl mx-auto">
+          <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">Startup Jobs</h1>
+            <p class="text-gray-600">
+              Find exciting opportunities at innovative startups or post jobs
+              for your growing team.
+            </p>
+          </div>
+
+          <!-- Search and Filters -->
+          <div class="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div class="md:col-span-2">
+                <div class="relative">
+                  <input
+                    type="text"
+                    placeholder="Search jobs by title, company, or keyword"
+                    class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <div
+                    class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 flex items-center justify-center text-gray-400"
+                  >
+                    <i class="ri-search-line"></i>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="relative">
+                  <input
+                    type="text"
+                    placeholder="Location"
+                    class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <div
+                    class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 flex items-center justify-center text-gray-400"
+                  >
+                    <i class="ri-map-pin-line"></i>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <select
+                  class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-8 appearance-none bg-white"
+                >
+                  <option>All Job Types</option>
+                  <option>Full-time</option>
+                  <option>Part-time</option>
+                  <option>Contract</option>
+                  <option>Internship</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-4 mt-4">
+              <div class="flex items-center">
+                <label class="flex items-center cursor-pointer">
+                  <div class="custom-checkbox mr-2"></div>
+                  <span class="text-sm text-gray-700">Remote only</span>
+                </label>
+              </div>
+              <div class="flex items-center">
+                <span class="text-sm text-gray-700 mr-2">Posted:</span>
+                <select
+                  class="px-3 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-8 appearance-none bg-white"
+                >
+                  <option>Any time</option>
+                  <option>Last 24 hours</option>
+                  <option>Last 7 days</option>
+                  <option>Last 30 days</option>
+                </select>
+              </div>
+              <div class="flex items-center ml-auto">
+                <button
+                  class="bg-primary text-white py-2 px-6 rounded-button font-medium hover:bg-blue-600 transition whitespace-nowrap"
+                >
+                  Search Jobs
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Jobs List -->
+          <div class="space-y-6">
+            <!-- Job Card 1 -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+              <div class="md:flex justify-between">
+                <div class="flex-1">
+                  <div class="flex items-start">
+                    <img
+                      src="https://readdy.ai/api/search-image?query=modern%20tech%20company%20logo%2C%20minimal%20design%2C%20blue%20and%20teal%20colors%2C%20abstract%20geometric%20shape%2C%20professional&width=60&height=60&seq=17&orientation=squarish"
+                      class="w-12 h-12 rounded-lg object-cover mr-4"
+                      alt="Company Logo"
+                    />
+                    <div>
+                      <h3 class="font-bold text-lg text-gray-900 mb-1">
+                        Senior Full Stack Developer
+                      </h3>
+                      <div
+                        class="flex flex-wrap items-center gap-3 text-sm text-gray-500"
+                      >
+                        <span>TechFlow</span>
+                        <span class="flex items-center">
+                          <div
+                            class="w-4 h-4 flex items-center justify-center mr-1 text-gray-400"
+                          >
+                            <i class="ri-map-pin-line"></i>
+                          </div>
+                          San Francisco, CA
+                        </span>
+                        <span
+                          class="bg-green-50 text-green-600 text-xs px-3 py-1 rounded-full"
+                          >Full-time</span
+                        >
+                        <span
+                          class="bg-blue-50 text-blue-600 text-xs px-3 py-1 rounded-full"
+                          >Remote</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-4">
+                    <p class="text-gray-600 text-sm">
+                      We're looking for an experienced Full Stack Developer to
+                      join our growing team. You'll work on our core product,
+                      building new features and improving existing ones.
+                      Experience with React, Node.js, and AWS required.
+                    </p>
+                  </div>
+                  <div class="mt-4 flex flex-wrap gap-2">
+                    <span
+                      class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full"
+                      >React</span
+                    >
+                    <span
+                      class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full"
+                      >Node.js</span
+                    >
+                    <span
+                      class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full"
+                      >AWS</span
+                    >
+                    <span
+                      class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full"
+                      >TypeScript</span
+                    >
+                    <span
+                      class="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full"
+                      >MongoDB</span
+                    >
+                  </div>
+                </div>
+                <div
+                  class="mt-4 md:mt-0 md:ml-6 flex flex-col items-end justify-between"
+                >
+                  <div class="text-right">
+                    <span class="text-gray-500 text-sm">Posted 2 days ago</span>
+                    <div class="flex items-center mt-1">
+                      <div
+                        class="w-4 h-4 flex items-center justify-center mr-1 text-gray-400"
+                      >
+                        <i class="ri-external-link-line"></i>
+                      </div>
+                      <span class="text-sm text-gray-500">via LinkedIn</span>
+                    </div>
+                  </div>
+                  <button
+                    class="mt-4 md:mt-0 bg-primary text-white py-2 px-6 rounded-button font-medium hover:bg-blue-600 transition whitespace-nowrap"
+                  >
+                    Apply Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pagination -->
+          <div class="flex justify-center mt-10">
+            <div class="flex items-center gap-2">
+              <button
+                class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:border-primary hover:text-primary transition"
+              >
+                <i class="ri-arrow-left-s-line"></i>
+              </button>
+              <button
+                class="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-white"
+              >
+                1
+              </button>
+              <button
+                class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 hover:border-primary hover:text-primary transition"
+              >
+                2
+              </button>
+              <button
+                class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 hover:border-primary hover:text-primary transition"
+              >
+                3
+              </button>
+              <button
+                class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:border-primary hover:text-primary transition"
+              >
+                <i class="ri-arrow-right-s-line"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+    
+</section>
+
+
+
+
+
+
+
+<section id="documents" class="hidden p-6 md:p-8">
+        <div class="max-w-7xl mx-auto">
+          <div class="flex justify-between items-center mb-8">
+            <div>
+              <h1 class="text-3xl font-bold text-gray-900 mb-4">
+                Startup Resources
+              </h1>
+              <p class="text-gray-600">
+                Access and share valuable documents, templates, and guides for
+                your startup journey.
+              </p>
+            </div>
+            <button
+              id="addDocumentBtn"
+              class="bg-primary text-white py-2 px-6 rounded-button font-medium hover:bg-blue-600 transition flex items-center whitespace-nowrap"
+            >
+              <div class="w-5 h-5 flex items-center justify-center mr-2">
+                <i class="ri-add-line"></i>
+              </div>
+              Add Document
+            </button>
+          </div>
+
+          <!-- Document Categories -->
+          <div class="flex flex-wrap gap-3 mb-8">
+            <button
+              class="px-4 py-2 bg-primary text-white rounded-full text-sm font-medium whitespace-nowrap"
+            >
+              All Documents
+            </button>
+            <button
+              class="px-4 py-2 bg-white text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 whitespace-nowrap"
+            >
+              Legal Templates
+            </button>
+            <button
+              class="px-4 py-2 bg-white text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 whitespace-nowrap"
+            >
+              Pitch Decks
+            </button>
+            <button
+              class="px-4 py-2 bg-white text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 whitespace-nowrap"
+            >
+              Financial Models
+            </button>
+            <button
+              class="px-4 py-2 bg-white text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 whitespace-nowrap"
+            >
+              Market Research
+            </button>
+            <button
+              class="px-4 py-2 bg-white text-gray-600 rounded-full text-sm font-medium hover:bg-gray-50 whitespace-nowrap"
+            >
+              Guides & Tutorials
+            </button>
+          </div>
+
+          <!-- Documents Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Document Card 1 -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+              <div class="flex items-center mb-4">
+                <div
+                  class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center"
+                >
+                  <div
+                    class="w-5 h-5 flex items-center justify-center text-primary"
+                  >
+                    <i class="ri-file-text-line"></i>
+                  </div>
+                </div>
+                <div class="ml-3">
+                  <span class="text-xs text-gray-500">Legal Template</span>
+                  <h3 class="font-semibold text-gray-900">
+                    SAFE Agreement Template
+                  </h3>
+                </div>
+              </div>
+              <p class="text-gray-600 text-sm mb-4">
+                Standard SAFE (Simple Agreement for Future Equity) template with
+                annotations and guidance for early-stage startups.
+              </p>
+              <div class="flex justify-between items-center">
+                <div class="flex items-center text-gray-500 text-xs">
+                  <div class="w-4 h-4 flex items-center justify-center mr-1">
+                    <i class="ri-eye-line"></i>
+                  </div>
+                  <span>1,245 views</span>
+                  <div
+                    class="w-4 h-4 flex items-center justify-center mx-1 ml-3"
+                  >
+                    <i class="ri-download-line"></i>
+                  </div>
+                  <span>843 downloads</span>
+                </div>
+                <button
+                  class="text-primary flex items-center text-sm font-medium whitespace-nowrap"
+                >
+                  <div class="w-5 h-5 flex items-center justify-center mr-1">
+                    <i class="ri-download-line"></i>
+                  </div>
+                  Download
+                </button>
+              </div>
+            </div>
+
+            <!-- Document Card 2 -->
+          </div>
+        </div>
+
+        <!-- Add Document Modal -->
+        <div
+          id="addDocumentModal"
+          class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden"
+        >
+          <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-bold text-gray-900">Add Document</h3>
+              <button
+                id="closeModalBtn"
+                class="text-gray-400 hover:text-gray-500"
+              >
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <i class="ri-close-line"></i>
+                </div>
+              </button>
+            </div>
+
+            <form>
+              <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >Document Title</label
+                >
+                <input
+                  type="text"
+                  class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="Enter document title"
+                />
+              </div>
+
+              <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >Category</label
+                >
+                <select
+                  class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent pr-8 appearance-none bg-white"
+                >
+                  <option>Legal Template</option>
+                  <option>Pitch Deck</option>
+                  <option>Financial Model</option>
+                  <option>Market Research</option>
+                  <option>Guide & Tutorial</option>
+                  <option>Other</option>
+                </select>
+              </div>
+
+              <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >Description</label
+                >
+                <textarea
+                  class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent h-24"
+                  placeholder="Enter document description"
+                ></textarea>
+              </div>
+
+              <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1"
+                  >Document Link or Upload</label
+                >
+                <div class="flex gap-3">
+                  <input
+                    type="text"
+                    class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    placeholder="Paste document link"
+                  />
+                  <button
+                    type="button"
+                    class="bg-gray-100 text-gray-700 py-2 px-4 rounded-button font-medium hover:bg-gray-200 transition whitespace-nowrap"
+                  >
+                    Browse
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex justify-end gap-3">
+                <button
+                  type="button"
+                  id="cancelModalBtn"
+                  class="px-6 py-2 border border-gray-200 rounded-button text-gray-700 font-medium hover:bg-gray-50 transition whitespace-nowrap"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class="px-6 py-2 bg-primary text-white rounded-button font-medium hover:bg-blue-600 transition whitespace-nowrap"
+                >
+                  Add Document
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+</section>
